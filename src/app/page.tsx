@@ -1,6 +1,7 @@
 "use client";
 
 import "viem/window";
+import { initSilk } from "@silk-wallet/silk-wallet-sdk"
 import styles from "./page.module.css";
 import { useEffect, useState } from "react";
 import {
@@ -35,20 +36,35 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const walletClient = createWalletClient({
-      chain: mainnet,
-      transport: custom(window.ethereum as WindowProvider),
-    });
-    setWalletClient(walletClient as WalletClient);
+    const silk = initSilk();
+    // @ts-ignore
+    window.ethereum = silk;
   }, []);
 
-  const getBlockNumber = async () => {
-    const blockNumber = await client.getBlockNumber();
-    setBlockNumber(Number(blockNumber));
-    setChainId(await client.getChainId());
-  };
+  const [connected, setConnected] = useState<boolean | undefined>(undefined);
 
-  getBlockNumber();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    (async () => {
+      try {
+        // @ts-ignore
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+        console.log('accounts: ', accounts)
+        if (accounts.length > 0) {
+          setConnected(true)
+        }
+      } catch (err) {
+        // do nothing
+      }
+    });
+  }, []);
+
+  // const getBlockNumber = async () => {
+  //   const blockNumber = await client.getBlockNumber();
+  //   setBlockNumber(Number(blockNumber));
+  //   setChainId(await client.getChainId());
+  // };
 
   const connectWallet = async () => {
     setAccount(undefined);
@@ -89,28 +105,61 @@ export default function Home() {
     });
   };
 
+  async function login(e: any) {
+    e.preventDefault();
+
+    const silk = initSilk();
+    // @ts-ignore
+    window.ethereum = silk;
+
+    // @ts-ignore
+     await window.ethereum.login()
+      .then(() => {
+        const walletClient = createWalletClient({
+          chain: mainnet,
+          transport: custom(window.ethereum as WindowProvider),
+        });
+        setWalletClient(walletClient as WalletClient);
+        setConnected(true)
+      })
+      .catch((err: any) => {
+        console.error(err);
+      });
+  }
+
   return (
     <main className={styles.main}>
       <div className={styles.content}>
         <div>Nextjs 13 & Viem</div>
-        <div>Current ChainId: {chainId}</div>
-        <div>
-          BlockNumber: <span>{blockNumber}</span>
-        </div>
-        {account ? (
-          <div>Connected address: {account.address}</div>
-        ) : connecting ? (
-          <div>Connecting...</div>
-        ) : (
-          <button onClick={connectWallet}>Connect Wallet</button>
-        )}
 
-        {requiredChainId.id != chainId && (
-          <button onClick={switchNetwork}>Switch network</button>
-        )}
+          {!connected && (
+            <button onClick={login}>
+              Login 
+            </button>
+          )}
 
-        {account && <button onClick={signMessage}>Sign gm message</button>}
-        {account && <button onClick={sendTransaction}>Send transaction</button>}
+          {connected && (
+            <>
+              <div>Current ChainId: {chainId}</div>
+              <div>
+                BlockNumber: <span>{blockNumber}</span>
+              </div>
+              {account ? (
+                <div>Connected address: {account.address}</div>
+              ) : connecting ? (
+                <div>Connecting...</div>
+              ) : (
+                <button onClick={connectWallet}>Connect Wallet</button>
+              )}
+      
+              {requiredChainId.id != chainId && (
+                <button onClick={switchNetwork}>Switch network</button>
+              )}
+      
+              {account && <button onClick={signMessage}>Sign gm message</button>}
+              {account && <button onClick={sendTransaction}>Send transaction</button>}
+            </>
+          )}
       </div>
     </main>
   );
